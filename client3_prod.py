@@ -1,5 +1,5 @@
 import socket
-from server_prob import PORT  # Import the PORT variable from the server script
+from server_prod import PORT  # Import the PORT variable from the server script
 
 
 def send_message(server_addr, message, buffer_size=4096, timeout=2):
