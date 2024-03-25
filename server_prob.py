@@ -1,7 +1,8 @@
 import socket
 import threading
-
+#from main import PORT  # Import the PORT variable from
 # Global set to keep track of active client addresses
+PORT = 39629
 active_clients = set()
 
 def client_handler(client_addr, server_sock, buffer_size=4096):
@@ -47,7 +48,7 @@ def client_handler(client_addr, server_sock, buffer_size=4096):
         if client_addr in active_clients:
             active_clients.remove(client_addr)
 
-def start_server(host='localhost', port=12355, buffer_size=4096):
+def start_server(host='localhost', port=PORT, buffer_size=4096):
     global active_clients
 
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server_sock:

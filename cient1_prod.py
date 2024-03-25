@@ -1,4 +1,6 @@
 import socket
+from server_prob import PORT  # Import the PORT variable from the server script
+
 
 def send_message(server_addr, message, buffer_size=4096, timeout=2):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as sock:
@@ -27,20 +29,25 @@ def send_message(server_addr, message, buffer_size=4096, timeout=2):
                     char_seq_num = int(data[:2])
                     chunk = data[2:].decode()
 
-                    if True:
-                        if chunk.endswith('\n'):
-                            reversed_message += chunk[:-1]
-                            break
-                        reversed_message += chunk
-                        ack = f'ACK{char_seq_num:02}'.encode()
-                        sock.sendto(ack, server_addr)
-                        seq_num += 1
+                    if chunk.endswith('\n'):
+                        reversed_message += chunk[:-1]
+                        break
+                    reversed_message += chunk
+                    ack = f'ACK{char_seq_num:02}'.encode()
+                    sock.sendto(ack, server_addr)
+                    seq_num += 1
             except socket.timeout:
                 break
 
-        print(f"Reversed message: '{reversed_message}'")
+        return reversed_message
+
 
 if __name__ == '__main__':
-    server_address = ('localhost', 12355)
-    message = input("Enter a message to send: ")
-    send_message(server_address, message)
+    server_address = ('localhost', PORT)
+
+    while True:
+        message = input("Enter a message to send (or type 'exit' to quit): ")
+        if message.lower() == 'exit':
+            break
+        reversed_message = send_message(server_address, message)
+        print(f"Reversed message: '{reversed_message}'")
