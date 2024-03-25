@@ -1,55 +1,65 @@
 import socket
 import threading
 
+# Global set to keep track of active client addresses
+active_clients = set()
+
 def client_handler(client_addr, server_sock, buffer_size=4096):
+    global active_clients
+
+    print(f"Connected to client: {client_addr}")
     message_buffer = []
     expected_seq_num = 0
 
     while True:
         data, addr = server_sock.recvfrom(buffer_size)
         if addr == client_addr:
-            message_chunk, seq_num = parse_data(data)
+            # Check if the packet is an ACK packet
+            if data.startswith(b'ACK'):
+                continue  # Ignore ACK packets, no further processing required
 
-            if seq_num == expected_seq_num:
-                print(f"Received message chunk with seq_num {seq_num} from {addr}")
-                message_buffer.append(message_chunk)
-                ack = f'ACK{seq_num:02}'.encode()
-                server_sock.sendto(ack, client_addr)
+            try:
+                seq_num = int(data[:2])
+                message_chunk = data[2:].decode()
 
-                if message_chunk.endswith('\n'):
-                    message = ''.join(message_buffer)[:-1]  # Remove the last '\n'
-                    reversed_message = reverse_and_respond(message)
+                if seq_num == expected_seq_num:
+                    print(f"From {addr} - Seq: {seq_num}, Size: {len(data)} bytes, Chunk: '{message_chunk}'")
+                    message_buffer.append(message_chunk)
+                    ack = f'ACK{seq_num:02}'.encode()
+                    server_sock.sendto(ack, client_addr)
 
-                    send_in_chunks(server_sock, reversed_message, expected_seq_num, client_addr, buffer_size)
-                    break
+                    if message_chunk.endswith('\n'):
+                        message = ''.join(message_buffer)[:-1]  # Remove the newline character
+                        reversed_message = message[::-1]
 
-                expected_seq_num += 1
+                        for idx, char in enumerate(reversed_message + '\n'):
+                            chunk = f'{expected_seq_num:02}{char}'.encode()
+                            server_sock.sendto(chunk, client_addr)
+                            expected_seq_num += 1
 
-def parse_data(data):
-    seq_num = int(data[:2])
-    message_chunk = data[2:].decode()
-    return message_chunk, seq_num
+                        message_buffer = []
+                        expected_seq_num = 0
+                        break  # End the client handler loop after sending the reversed message
+            except ValueError as e:
+                print(f"Error processing packet from {addr}: {e}")
 
-def reverse_and_respond(message):
-    return message[::-1]
+    with threading.Lock():
+        if client_addr in active_clients:
+            active_clients.remove(client_addr)
 
-def send_in_chunks(sock, message, seq_num, client_addr, buffer_size):
-    for i in range(0, len(message), buffer_size - 2):
-        chunk = message[i:i + buffer_size - 2]
-        data = f'{seq_num:02}'.encode() + chunk.encode()
-        sock.sendto(data, client_addr)
-        seq_num += 1
-    # Send end-of-message marker
-    sock.sendto(f'{seq_num:02}\n'.encode(), client_addr)
+def start_server(host='localhost', port=12355, buffer_size=4096):
+    global active_clients
 
-def start_server(host='localhost', port=12349, buffer_size=4096):
     with socket.socket(socket.AF_INET, socket.SOCK_DGRAM) as server_sock:
         server_sock.bind((host, port))
         print(f"Server started at {host}:{port}")
 
         while True:
-            data, client_addr = server_sock.recvfrom(buffer_size)
-            threading.Thread(target=client_handler, args=(client_addr, server_sock, buffer_size)).start()
+            data, client_addr = server_sock.recvfrom(1024)  # Initial packet size for client detection
+            with threading.Lock():
+                if client_addr not in active_clients:
+                    active_clients.add(client_addr)
+                    threading.Thread(target=client_handler, args=(client_addr, server_sock, buffer_size)).start()
 
 if __name__ == '__main__':
     start_server()
